@@ -1,0 +1,555 @@
+---
+title: "Apple Development Analysis"
+author: "Maria Christodoulou"
+date: "15/08/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+neededPackages <- c("haven","rprojroot","tidyverse","pscl","MASS","lmtest","RColorBrewer","lubridate","pollen","sandwich")
+newPackages <- neededPackages[!(neededPackages %in% installed.packages()[,"Package"])]
+if(length(newPackages)) install.packages(newPackages)
+lapply(neededPackages, require, character.only = TRUE)
+rm(neededPackages,newPackages)
+
+find_root(rprojroot::is_rstudio_project)
+
+```
+
+## Data Import
+
+Weather data downloaded from MET MIDAS at http://data.ceda.ac.uk/badc/ukmo-midas. I included soil temperature files, air temperature and rainfall (Daily measurements). The station nearest is FAVERSHAM 757 (details here: http://archive.ceda.ac.uk/cgi-bin/midas_stations/station_details.cgi.py?id=757&db=midas_stations) 
+
+The years needed are 2013 and 2014. For temperature, columns are as follows: http://artefacts.ceda.ac.uk/badc_datadocs/ukmo-midas/TD_Table.html
+
+Growing season from 2013/06/10 to 2013/10/07
+
+```{r temperature}
+temperature2013 <- read_delim(file.path("Data", "midas_tempdrnl_201301-201312.txt"), delim = ",", col_names =FALSE)
+
+colnames(temperature2013)<-c("OB_END_TIME","ID_TYPE","ID","OB_HOUR_COUNT","VERSION_NUM","MET_DOMAIN_NAME","SRC_ID","REC_ST_IND","MAX_AIR_TEMP",
+                             "MIN_AIR_TEMP","MIN_GRSS_TEMP","MIN_CONC_TEMP","MAX_AIR_TEMP_Q","MIN_AIR_TEMP_Q","MIN_GRSS_TEMP_Q","MIN_CONC_TEMP_Q",
+                             "METO_STMP_TIME","MIDAS_STMP_ETIME","MAX_AIR_TEMP_J", "MIN_AIR_TEMP_J","MIN_GRSS_TEMP_J","MIN_CONC_TEMP_J")
+head(temperature2013)
+
+temperature2013 %>% mutate(SRC_ID=as.integer(SRC_ID)) %>% filter(SRC_ID==757) %>% 
+
+  mutate(VERSION_NUM=as.integer(VERSION_NUM)) %>% filter(VERSION_NUM==1) %>%
+  
+  mutate(MAX_AIR_TEMP_Q=as.integer(MAX_AIR_TEMP_Q)) %>% filter(MAX_AIR_TEMP_Q=="1") %>%
+  
+  filter(OB_END_TIME>ymd(20130610)) %>%
+  
+  filter(OB_END_TIME<ymd(20131008)) %>%
+  
+  mutate(MAX_AIR_TEMP=as.double(MAX_AIR_TEMP))%>%
+  
+  mutate(MIN_AIR_TEMP=as.double(MIN_AIR_TEMP))->temperature2013GrowingSeason
+
+temperature2014 <- read_delim(file.path("Data", "midas_tempdrnl_201401-201412.txt"), delim = ",", col_names =FALSE)
+
+colnames(temperature2014)<-c("OB_END_TIME","ID_TYPE","ID","OB_HOUR_COUNT","VERSION_NUM","MET_DOMAIN_NAME","SRC_ID","REC_ST_IND","MAX_AIR_TEMP",
+                             "MIN_AIR_TEMP","MIN_GRSS_TEMP","MIN_CONC_TEMP","MAX_AIR_TEMP_Q","MIN_AIR_TEMP_Q","MIN_GRSS_TEMP_Q","MIN_CONC_TEMP_Q",
+                             "METO_STMP_TIME","MIDAS_STMP_ETIME","MAX_AIR_TEMP_J", "MIN_AIR_TEMP_J","MIN_GRSS_TEMP_J","MIN_CONC_TEMP_J")
+head(temperature2014)
+
+temperature2014 %>% mutate(SRC_ID=as.integer(SRC_ID)) %>% filter(SRC_ID==757) %>% 
+
+  mutate(VERSION_NUM=as.integer(VERSION_NUM)) %>% filter(VERSION_NUM==1) %>%
+  
+  mutate(MAX_AIR_TEMP_Q=as.integer(MAX_AIR_TEMP_Q)) %>% filter(MAX_AIR_TEMP_Q=="1") %>%
+  
+  filter(OB_END_TIME>ymd(20140515)) %>%
+  
+  filter(OB_END_TIME<ymd(20141110)) %>%
+  
+  mutate(MAX_AIR_TEMP=as.double(MAX_AIR_TEMP))%>%
+  
+  mutate(MIN_AIR_TEMP=as.double(MIN_AIR_TEMP))->temperature2014GrowingSeason
+
+```
+
+# Linear data import, 2013
+
+
+
+```{r linear 2013}
+
+adam2013<-read_delim(file.path("Data/LM2013", "adam.txt"), delim = "\t", col_names =TRUE)
+
+beacon2013<-read_delim(file.path("Data/LM2013", "beacon.txt"), delim = "\t", col_names =TRUE)
+
+boiken2013<-read_delim(file.path("Data/LM2013", "boiken.txt"), delim = "\t", col_names =TRUE)
+
+bovarde2013<-read_delim(file.path("Data/LM2013", "bovarde.txt"), delim = "\t", col_names =TRUE)
+
+catshead2013<-read_delim(file.path("Data/LM2013", "catshead.txt"), delim = "\t", col_names =TRUE)
+
+fuji2013<-read_delim(file.path("Data/LM2013", "fuji.txt"), delim = "\t", col_names =TRUE)
+
+kaiser2013<-read_delim(file.path("Data/LM2013", "kaiser.txt"), delim = "\t", col_names =TRUE)
+
+limoncella2013<-read_delim(file.path("Data/LM2013", "limoncella.txt"), delim = "\t", col_names =TRUE)
+
+present2013<-read_delim(file.path("Data/LM2013", "present.txt"), delim = "\t", col_names =TRUE)
+
+red2013<-read_delim(file.path("Data/LM2013", "red.txt"), delim = "\t", col_names =TRUE)
+
+rheinischer2013<-read_delim(file.path("Data/LM2013", "rheinischer.txt"), delim = "\t", col_names =TRUE)
+
+wheeler2013<-read_delim(file.path("Data/LM2013", "wheeler.txt"), delim = "\t", col_names =TRUE)
+
+adam2013 %>% count(Week)
+
+linear2013<-bind_rows(adam2013,beacon2013,boiken2013,bovarde2013,catshead2013,fuji2013,kaiser2013,
+          limoncella2013,present2013,red2013,rheinischer2013,wheeler2013)
+
+rm(adam2013,beacon2013,boiken2013,bovarde2013,catshead2013,fuji2013,kaiser2013,
+          limoncella2013,present2013,red2013,rheinischer2013,wheeler2013)
+
+```
+
+# Linear 2014
+
+```{r linear 2014}
+boiken2014<-read_delim(file.path("Data/LM2014", "Boiken2014.txt"), delim = "\t", col_names =TRUE)
+
+bovarde2014<-read_delim(file.path("Data/LM2014", "Bovarde2014.txt"), delim = "\t", col_names =TRUE)
+
+fuji2014<-read_delim(file.path("Data/LM2014", "Fuji2014.txt"), delim = "\t", col_names =TRUE)
+
+kaiser2014<-read_delim(file.path("Data/LM2014", "Kaiser2014.txt"), delim = "\t", col_names =TRUE)
+
+present2014<-read_delim(file.path("Data/LM2014", "Present2014.txt"), delim = "\t", col_names =TRUE)
+
+wheeler2014<-read_delim(file.path("Data/LM2014", "Wheeler2014.txt"), delim = "\t", col_names =TRUE)
+
+linear2014<-bind_rows(boiken2014,bovarde2014,fuji2014,kaiser2014,present2014,wheeler2014)
+
+rm(boiken2014,bovarde2014,fuji2014,kaiser2014,present2014,wheeler2014)
+```
+
+## Growing degree days calculations
+
+```{r gdds}
+GDD2013base5<-gdd(tmax = temperature2013GrowingSeason$MAX_AIR_TEMP, tmin = temperature2013GrowingSeason$MIN_AIR_TEMP, tbase = 5, tbase_max = 30)
+
+GDD2014base5<-gdd(tmax = temperature2014GrowingSeason$MAX_AIR_TEMP, tmin = temperature2014GrowingSeason$MIN_AIR_TEMP, tbase = 5, tbase_max = 30)
+
+GDD2013base10<-gdd(tmax = temperature2013GrowingSeason$MAX_AIR_TEMP, tmin = temperature2013GrowingSeason$MIN_AIR_TEMP, tbase = 10, tbase_max = 30)
+
+GDD2014base10<-gdd(tmax = temperature2014GrowingSeason$MAX_AIR_TEMP, tmin = temperature2014GrowingSeason$MIN_AIR_TEMP, tbase = 10, tbase_max = 30)
+
+View(temperature2013GrowingSeason %>% dplyr::select(OB_END_TIME, MIN_AIR_TEMP, MAX_AIR_TEMP) %>%
+       mutate(Diff=MAX_AIR_TEMP-MIN_AIR_TEMP))
+
+
+```
+
+#Homogenising two years
+
+```{r merging years}
+
+linear2013 %>% mutate(Day=Week*7) %>% 
+  dplyr::select("Culivar", "Day", "Replicate","Diameter","Length","Weight") %>%
+  rename("Cultivar"="Culivar") %>%
+  mutate(Date=ymd(20130610)+Day) %>%
+  dplyr::select(-"Day") %>%
+  dplyr::select("Cultivar","Date", everything())->linear2013
+
+linear2014 %>% dplyr::select("Cultivar", "Day", "Replicate","Diameter","Length","Weight") %>%
+  mutate(Date=ymd(20140515)+Day) %>%
+  dplyr::select(-"Day") %>%
+  dplyr::select("Cultivar","Date", everything())->linear2014
+
+as.Date(temperature2013GrowingSeason$OB_END_TIME)
+
+GDD2013<-bind_cols(Date=as.Date(temperature2013GrowingSeason$OB_END_TIME),GDDbase5=GDD2013base5,GDDbase10=GDD2013base10)
+
+GDD2014<-bind_cols(Date=as.Date(temperature2014GrowingSeason$OB_END_TIME),GDDbase5=GDD2014base5,GDDbase10=GDD2014base10)
+
+left_join(linear2013,GDD2013)
+left_join(linear2014,GDD2014)
+
+full_join(left_join(linear2013,GDD2013),left_join(linear2014,GDD2014))->linearMorphometricsGDD
+
+
+```
+
+model
+```{r Adams}
+cor((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$Weight, (linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5)
+
+full_model<- lm(Weight ~ GDDbase5, data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(full_model)
+quadratic_model <- lm(Weight ~ GDDbase5 + I(GDDbase5^2), data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(quadratic_model)
+
+order_id <- order((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5)
+plot((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5,((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$Weight))
+
+lines(x = (linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5[order_id], 
+      y = fitted(quadratic_model)[order_id],
+      col = "red", 
+      lwd = 2)
+
+
+quadratic_model2 <- lm(log(Weight) ~ GDDbase5 + I(GDDbase5^2), data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(quadratic_model2)
+BIC(quadratic_model)
+BIC(quadratic_model2)
+
+
+order_id <- order((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5)
+plot((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5,log(((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$Weight)))
+
+lines(x = (linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5[order_id], 
+      y = fitted(quadratic_model2)[order_id],
+      col = "red", 
+      lwd = 2)
+
+
+single_log_model <- lm(log(Weight) ~ GDDbase5, data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(single_log_model)
+plot((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5,log(((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$Weight)))
+
+lines(x = (linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5[order_id], 
+      y = fitted(single_log_model)[order_id],
+      col = "red", 
+      lwd = 2)
+
+double_log_model <- lm(log(Weight) ~ log(GDDbase5), data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(double_log_model)
+plot(log((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5),log(((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$Weight)))
+
+lines(x = log((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5[order_id]), 
+      y = fitted(double_log_model)[order_id],
+      col = "red", 
+      lwd = 2)
+
+
+BIC(quadratic_model)
+BIC(quadratic_model2)
+BIC(single_log_model)
+BIC(double_log_model)
+plot(quadratic_model)
+plot(double_log_model)
+
+library(MASS)
+
+log_sqrt_model <- lm(log(Weight) ~ sqrt(GDDbase5), data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(log_sqrt_model)
+plot(log_sqrt_model)
+
+BIC(log_sqrt_model)
+sqrt_sqrt_model <- lm(sqrt(Weight) ~ sqrt(GDDbase5), data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(sqrt_sqrt_model)
+BIC(sqrt_sqrt_model)
+    
+log_1oversqrt_model <- lm(log(Weight) ~ 1/sqrt(GDDbase5), data =  (linearMorphometricsGDD%>%filter(Cultivar=="Adam")))
+summary(log_1oversqrt_model)
+
+BIC(quadratic_model)
+BIC(quadratic_model2)
+BIC(single_log_model)
+BIC(double_log_model)
+BIC(log_sqrt_model)
+BIC(sqrt_sqrt_model)
+BIC(log_1oversqrt_model)
+
+
+plot(log((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5),log(((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$Weight)))
+
+lines(x = log((linearMorphometricsGDD%>%filter(Cultivar=="Adam"))$GDDbase5[order_id]), 
+      y = fitted(double_log_model)[order_id],
+      col = "red", 
+      lwd = 2)
+plot(double_log_model)
+
+
+
+
+```
+```{r}
+double_log_model_all <- lm(log(Weight) ~ log(GDDbase5), data =linearMorphometricsGDD)
+summary(double_log_model_all)
+plot(log(linearMorphometricsGDD$GDDbase5),log(linearMorphometricsGDD$Weight))
+
+order_id_all <- order(linearMorphometricsGDD$GDDbase5)
+
+lines(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
+      y = fitted(double_log_model_all)[order_id_all],
+      col = "red", 
+      lwd = 2)
+BIC(double_log_model_all)
+plot(double_log_model_all)
+
+asymptotic_weight<-nls(log(Weight)~SSasymp(GDDbase5, a, b, c),data = linearMorphometricsGDD)
+
+summary(asymptotic_weight)
+BIC(double_log_model_all)
+BIC(asymptotic_weight) # Worse than double log
+
+coeftest(double_log_model_all,vcov=vcovHC, type = "HC1")
+
+```
+
+```{r length}
+
+
+linearMorphometricsGDD %<>% mutate(Length=ifelse(year(Date)==2013,Length*10,Length)) %>%
+  mutate(Diameter=ifelse(year(Date)==2013,Diameter*10,Diameter))
+plot(log(linearMorphometricsGDD$GDDbase5),log(linearMorphometricsGDD$Length))
+
+double_log_model_length<-lm(log(Length)~log(GDDbase5), data=linearMorphometricsGDD)
+
+plot(double_log_model_length) 
+
+summary(double_log_model_length)
+
+asymptotic_length<-nls(log(Length)~SSasymp(GDDbase5, a, b, c),data = linearMorphometricsGDD)
+
+summary(asymptotic_length)
+BIC(double_log_model_length)
+BIC(asymptotic_length) # Worse than double log
+
+
+
+
+```
+
+```{r diameter}
+
+plot(log(linearMorphometricsGDD$GDDbase5),log(linearMorphometricsGDD$Diameter))
+
+double_log_model_diameter<-lm(log(Diameter)~log(GDDbase5), data=linearMorphometricsGDD)
+
+plot(double_log_model_diameter) 
+
+summary(double_log_model_diameter)
+
+plot(log(linearMorphometricsGDD$GDDbase5),log(linearMorphometricsGDD$Diameter))
+
+lines(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
+      y = fitted(double_log_model_diameter)[order_id_all],
+      col = "red", 
+      lwd = 2)
+
+asymptotic_diameter<-nls(log(Diameter)~SSasymp(GDDbase5, a, b, c),data = linearMorphometricsGDD)
+
+summary(asymptotic_diameter)
+BIC(double_log_model_diameter)
+BIC(asymptotic_diameter) # Worse than double log
+
+ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Diameter)))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_diameter)[order_id_all]))+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Diameter (in mm)")+
+  ggtitle("Log-log linear regression for Diameter")
+
+ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Length)))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_length)[order_id_all]))+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Length (in mm)")+
+  ggtitle("Log-log linear regression for Length")
+
+ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Weight)))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_all)[order_id_all]))+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Weight (in g)")+
+  ggtitle("Log-log linear regression for Weight")
+
+
+```
+
+# Geometric Size:
+
+```{r GM data import}
+adamGM2013<-read_delim(file.path("Data/GM2013", "adam.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Adam")
+
+beaconGM2013<-read_delim(file.path("Data/GM2013", "beacon.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Beacon")
+
+boikenGM2013<-read_delim(file.path("Data/GM2013", "boiken.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Boiken")
+
+bovardeGM2013<-read_delim(file.path("Data/GM2013", "bovarde.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Bovarde")
+
+catsheadGM2013<-read_delim(file.path("Data/GM2013", "catshead.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Catshead")
+
+fujiGM2013<-read_delim(file.path("Data/GM2013", "fuji.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Fuji")
+
+kaiserGM2013<-read_delim(file.path("Data/GM2013", "kaiser.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Kaiser")
+
+limoncellaGM2013<-read_delim(file.path("Data/GM2013", "limoncella.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Limoncella")
+
+presentGM2013<-read_delim(file.path("Data/GM2013", "present.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Present")
+
+redGM2013<-read_delim(file.path("Data/GM2013", "red.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Red")
+
+rheinischerGM2013<-read_delim(file.path("Data/GM2013", "rheinischer.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Rheinischer")
+
+wheelerGM2013<-read_delim(file.path("Data/GM2013", "wheeler.txt"), delim = "\t", col_names =TRUE) %>% mutate(Cultivar="Wheeler")
+
+geometric2013<-bind_rows(adamGM2013,beaconGM2013,boikenGM2013,bovardeGM2013,catsheadGM2013,fujiGM2013,kaiserGM2013,
+          limoncellaGM2013,presentGM2013,redGM2013,rheinischerGM2013,wheelerGM2013)
+
+rm(adamGM2013,beaconGM2013,boikenGM2013,bovardeGM2013,catsheadGM2013,fujiGM2013,kaiserGM2013,
+          limoncellaGM2013,presentGM2013,redGM2013,rheinischerGM2013,wheelerGM2013)
+
+geometric2013 %>% filter(Week>1) %>% mutate(Day=Week*7) %>% 
+  dplyr::select("Cultivar", "Day", "Individual","CentroidSize") %>%
+  mutate(Date=ymd(20130610)+Day) %>%
+  dplyr::select(-"Day") %>%
+  dplyr::select("Cultivar","Date", everything())->geometric2013
+
+left_join(geometric2013,GDD2013)->geometricMorphometricsGDD
+
+
+```
+
+Centroid size
+
+```{r}
+
+order_id_all_geom <- order(geometricMorphometricsGDD$GDDbase5)
+plot(geometricMorphometricsGDD$GDDbase5,geometricMorphometricsGDD$CentroidSize)
+double_log_model_centroid<-lm(log(CentroidSize)~log(GDDbase5), data=geometricMorphometricsGDD)
+plot(double_log_model_centroid)
+centroidLog_log_model_centroid<-lm(log(CentroidSize)~(GDDbase5), data=geometricMorphometricsGDD)
+
+plot(centroidLog_log_model_centroid) 
+
+model_centroid<-lm(CentroidSize~GDDbase5, data=geometricMorphometricsGDD)
+summary(model_centroid)
+
+boxcox(model_centroid, lambda = seq(0,1, 0.001))
+plot(model_centroid) 
+plot(double_log_model_centroid)
+plot(centroidLog_log_model_centroid) 
+
+bptest(double_log_model_centroid)
+plot(log(geometricMorphometricsGDD$GDDbase5),log(geometricMorphometricsGDD$CentroidSize))
+lines(lines(x = log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]), 
+      y = fitted(double_log_model_centroid)[order_id_all_geom],
+      col = "red", 
+      lwd = 2))
+summary(double_log_model_centroid)
+
+
+
+quadratic_model_centroid <- lm(CentroidSize ~ GDDbase5 + I(GDDbase5^2), data = geometricMorphometricsGDD)
+summary(quadratic_model_centroid)
+asymptotic_centroid<-nls(log(CentroidSize)~SSasymp(GDDbase5, a, b, c),data = geometricMorphometricsGDD)
+
+summary(asymptotic_centroid)
+plot(asymptotic_centroid)
+BIC(asymptotic_centroid)
+BIC(double_log_model_centroid)
+
+
+ggplot(geometricMorphometricsGDD,aes(x=log(GDDbase5),y=log(CentroidSize)))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]), y=fitted(double_log_model_centroid)[order_id_all_geom]))+
+  geom_line(col="blueviolet", aes(x = log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]), 
+      y = fitted(asymptotic_centroid)[order_id_all_geom]), linetype=8)+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Centroid size")+
+  ggtitle("Centroid Size")
+
+
+geometricMorphometricsGDD
+
+```
+
+# graphics
+
+```{r}
+
+# ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Diameter)))+
+#   theme_bw()+
+#   geom_point(shape=20)+
+#   geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_diameter)[order_id_all]))+
+#   geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
+#       y = fitted(asymptotic_diameter)[order_id_all]), linetype=8)+
+#   xlab("Logarithm of Growing Degree Days (base 5)")+
+#   xlab("Logarithm of Growing Degree Days (base 5)")+
+#   ylab("Logarithm of Diameter (in mm)")
+# 
+# ggsave("Diameter.svg")
+# 
+# ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Length)))+
+#   theme_bw()+
+#   geom_point(shape=20)+
+#   geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_length)[order_id_all]))+
+#   geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
+#       y = fitted(asymptotic_length)[order_id_all]), linetype=8)+
+#   xlab("Logarithm of Growing Degree Days (base 5)")+
+#   ylab("Logarithm of Length (in mm)")
+# 
+# ggsave("Length.svg")
+# 
+# ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Weight)))+
+#   theme_bw()+
+#   geom_point(shape=20)+
+#   geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_all)[order_id_all]))+
+#   geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
+#       y = fitted(asymptotic_weight)[order_id_all]), linetype=8)+
+#   xlab("Logarithm of Growing Degree Days (base 5)")+
+#   ylab("Logarithm of Weight (in g)")
+# 
+# ggsave("Weight.svg")
+# 
+# ggplot(geometricMorphometricsGDD,aes(x=log(GDDbase5),y=log(CentroidSize)))+
+#   theme_bw()+
+#   geom_point(shape=20)+
+#   geom_line(col="grey45",aes(x=log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]), y=fitted(double_log_model_centroid)[order_id_all_geom]))+
+#   geom_line(col="blueviolet", aes(x = log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]),
+#       y = fitted(asymptotic_centroid)[order_id_all_geom]), linetype=8)+
+#   xlab("Logarithm of Growing Degree Days (base 5)")+
+#   ylab("Logarithm of Centroid size")
+# 
+# ggsave("CentroidSize.svg")
+
+linearMorphometricsGDD %>% filter(Date=="2013-09-23")
+bind_cols(temperature2013GrowingSeason,GDD5=GDD2013base5) %>% dplyr::select(OB_END_TIME,GDD5)
+bind_cols(temperature2014GrowingSeason,GDD5=GDD2014base5) %>% dplyr::select(OB_END_TIME,GDD5)
+gdds<-c(1098.55,1217.35,1353.75,1362.85,1516.65)
+
+as_tibble(gdds) %>% mutate(logs=log(gdds))
+c(gdds[1],log(gdds[-5]))
+log(gdds)-c(gdds[1],log(gdds[-5]))
+
+((gdds[2]*100)/gdds[1])-100 #difference between 09/09/2013 and 23/09/2013
+(log(gdds[3])*100)/log(gdds[2])-100 #difference between 23/09/2013 and 07/10/2013
+(log(gdds[5])*100)/log(gdds[4])-100 #difference between 08/09/2014 and 22/09/2014
+
+
+geometricMorphometricsGDD
+
+
+```
+
+```{r}
+linearMorphometricsGDD %>% group_by(Date,Cultivar) %>% count() %>% arrange(Cultivar)
+```
+#Interpretation
+
+```{r}
+a=log((100 + 1.5)/100)
+exp(a*0.437) #Length 0.437: 10% increase in GDD to 1.04% increase in Length
+exp(a*0.511) #Diameter 0.511 : 10% increase in GDD to 1.05% increase in Diameter
+exp(a*1.389) #Weight 1.389 : 10% increase in GDD to 1.14% increase in Weight
+exp(a*0.488) #Centroid Size 0.488 10% increase in GDD to 1.05% increase in Weight
+
+
+
+```
+
+
