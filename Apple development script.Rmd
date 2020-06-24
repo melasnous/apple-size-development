@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 
-neededPackages <- c("haven","rprojroot","tidyverse","pscl","MASS","lmtest","RColorBrewer","lubridate","pollen","sandwich")
+neededPackages <- c("haven","rprojroot","tidyverse","pscl","MASS","lmtest","RColorBrewer","lubridate","pollen","sandwich","colospace")
 newPackages <- neededPackages[!(neededPackages %in% installed.packages()[,"Package"])]
 if(length(newPackages)) install.packages(newPackages)
 lapply(neededPackages, require, character.only = TRUE)
@@ -472,50 +472,60 @@ geometricMorphometricsGDD
 
 ```{r}
 
-# ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Diameter)))+
-#   theme_bw()+
-#   geom_point(shape=20)+
-#   geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_diameter)[order_id_all]))+
-#   geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
-#       y = fitted(asymptotic_diameter)[order_id_all]), linetype=8)+
-#   xlab("Logarithm of Growing Degree Days (base 5)")+
-#   xlab("Logarithm of Growing Degree Days (base 5)")+
-#   ylab("Logarithm of Diameter (in mm)")
-# 
-# ggsave("Diameter.svg")
-# 
-# ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Length)))+
-#   theme_bw()+
-#   geom_point(shape=20)+
-#   geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_length)[order_id_all]))+
-#   geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
-#       y = fitted(asymptotic_length)[order_id_all]), linetype=8)+
-#   xlab("Logarithm of Growing Degree Days (base 5)")+
-#   ylab("Logarithm of Length (in mm)")
-# 
-# ggsave("Length.svg")
-# 
-# ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Weight)))+
-#   theme_bw()+
-#   geom_point(shape=20)+
-#   geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_all)[order_id_all]))+
-#   geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]), 
-#       y = fitted(asymptotic_weight)[order_id_all]), linetype=8)+
-#   xlab("Logarithm of Growing Degree Days (base 5)")+
-#   ylab("Logarithm of Weight (in g)")
-# 
-# ggsave("Weight.svg")
-# 
-# ggplot(geometricMorphometricsGDD,aes(x=log(GDDbase5),y=log(CentroidSize)))+
-#   theme_bw()+
-#   geom_point(shape=20)+
-#   geom_line(col="grey45",aes(x=log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]), y=fitted(double_log_model_centroid)[order_id_all_geom]))+
-#   geom_line(col="blueviolet", aes(x = log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]),
-#       y = fitted(asymptotic_centroid)[order_id_all_geom]), linetype=8)+
-#   xlab("Logarithm of Growing Degree Days (base 5)")+
-#   ylab("Logarithm of Centroid size")
-# 
-# ggsave("CentroidSize.svg")
+library(colorspace)
+
+q12 <- sequential_hcl(12, palette = "Viridis")
+
+linearMorphometricsGDD
+
+ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Diameter),col=Cultivar))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_diameter)[order_id_all]))+
+  geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]),
+      y = fitted(asymptotic_diameter)[order_id_all]), linetype=8)+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Diameter (in mm)")+
+  scale_color_manual(values=q12)
+
+ggsave("DiameterColours.svg",  width = 7.29, height = 9)
+
+ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Length),col=Cultivar))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_length)[order_id_all]))+
+  geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]),
+      y = fitted(asymptotic_length)[order_id_all]), linetype=8)+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Length (in mm)")+
+  scale_color_manual(values=q12)
+
+ggsave("LengthColours.svg",  width = 7.29, height = 9)
+
+ggplot(linearMorphometricsGDD,aes(x=log(GDDbase5),y=log(Weight),col=Cultivar))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(linearMorphometricsGDD$GDDbase5[order_id_all]), y=fitted(double_log_model_all)[order_id_all]))+
+  geom_line(col="blueviolet", aes(x = log(linearMorphometricsGDD$GDDbase5[order_id_all]),
+      y = fitted(asymptotic_weight)[order_id_all]), linetype=8)+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Weight (in g)")+
+  scale_color_manual(values=q12)
+
+ggsave("WeightColour.svg",  width = 7.29, height = 9)
+
+ggplot(geometricMorphometricsGDD,aes(x=log(GDDbase5),y=log(CentroidSize),col=Cultivar))+
+  theme_bw()+
+  geom_point(shape=20)+
+  geom_line(col="grey45",aes(x=log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]), y=fitted(double_log_model_centroid)[order_id_all_geom]))+
+  geom_line(col="blueviolet", aes(x = log(geometricMorphometricsGDD$GDDbase5[order_id_all_geom]),
+      y = fitted(asymptotic_centroid)[order_id_all_geom]), linetype=8)+
+  xlab("Logarithm of Growing Degree Days (base 5)")+
+  ylab("Logarithm of Centroid size")+
+  scale_color_manual(values=q12)
+
+ggsave("CentroidSizeColour.svg",  width = 7.29, height = 9)
 
 linearMorphometricsGDD %>% filter(Date=="2013-09-23")
 bind_cols(temperature2013GrowingSeason,GDD5=GDD2013base5) %>% dplyr::select(OB_END_TIME,GDD5)
@@ -532,7 +542,6 @@ log(gdds)-c(gdds[1],log(gdds[-5]))
 
 
 geometricMorphometricsGDD
-
 
 ```
 
